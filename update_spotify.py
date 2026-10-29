@@ -147,7 +147,7 @@ def main():
         for pos, artist, title in unresolved:
             print(f"  Ultratop #{pos}: {artist} - {title}", flush=True)
         raise RuntimeError("Niet alle 50 tracks betrouwbaar gevonden; playlist blijft ongewijzigd")
-    playlist_id = os.environ.get("SPOTIFY_PLAYLIST_ID", "").strip()
+    playlist_id = os.environ.get("SPOTIFY_PLAYLIST_ID", "").strip() or "59kSfLkSzSUryhnPMHeF99"
     if playlist_id:
         playlist = sp.playlist(playlist_id, fields="id,name,owner(id)")
         if playlist["owner"]["id"] != user_id:
