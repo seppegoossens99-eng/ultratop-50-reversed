@@ -55,28 +55,50 @@ def main():
     used = set()
     unresolved = []
     import unicodedata
+
     def norm(s):
         s = unicodedata.normalize("NFKD", s.casefold())
         return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
 
+    def clean_artist(s):
+        return re.sub(r"\\s*\\((?:fr|be|nl|uk|us|de|au|ca)\\)\\s*$", "", s, flags=re.I).strip()
+
+    def artist_parts(s):
+        return [clean_artist(p).strip() for p in re.split(r"\\s+(?:x|X|&|and|feat\\.?|ft\\.?)\\s+", clean_artist(s), flags=re.I) if p.strip()]
+
+    def artist_ok(chart_artist, spotify_artists):
+        expected = [norm(x) for x in artist_parts(chart_artist)]
+        actual = [norm(a["name"]) for a in spotify_artists]
+        return bool(expected) and all(x in actual for x in expected)
+
+    def title_ok(chart_title, spotify_title):
+        expected = norm(chart_title)
+        actual = norm(spotify_title)
+        if actual == expected:
+            return True
+        # Only permit an explicit parenthetical suffix on the Spotify version.
+        # E.g. "I'm Good - From The Movie GOAT" or "Talk To You (ft. 54 Ultra)".
+        prefix = re.split(r"\\s+(?:-|–)\\s+|\\s*\\(", spotify_title, maxsplit=1)[0]
+        return norm(prefix) == expected
+
     for pos, title, artist in tracks:
-        artist_clean = re.sub(r"\\s*\\((?:fr|be|nl|uk|us|de|au|ca)\\)\\s*$", "", artist, flags=re.I).strip()
+        artist_clean = clean_artist(artist)
+        parts = artist_parts(artist)
         queries = [
-            f'track:"{title}" artist:"{artist}"',
-            f'"{title}" "{artist}"',
-            f'{title} {artist}',
             f'track:"{title}" artist:"{artist_clean}"',
             f'"{title}" "{artist_clean}"',
             f'{title} {artist_clean}',
+            f'"{title}" "{parts[0]}"',
+            f'{title} {parts[0]}',
         ]
         candidates = {}
-        for query in queries:
+        matches = []
+        for query in dict.fromkeys(queries):
             for item in sp.search(q=query, type="track", limit=10)["tracks"]["items"]:
                 candidates[item["id"]] = item
             matches = [
                 item for item in candidates.values()
-                if norm(item["name"]) == norm(title)
-                and any(norm(a["name"]) in {norm(artist), norm(artist_clean)} for a in item["artists"])
+                if title_ok(title, item["name"]) and artist_ok(artist, item["artists"])
             ]
             if matches:
                 break
@@ -95,7 +117,7 @@ def main():
         uri = target["uri"]
         used.add(uri)
         uris.append(uri)
-        print(f"{51-pos:02d}. {artist} - {title}", flush=True)
+        print(f"{51-pos:02d}. {artist} - {title} -> {target['name']} / {', '.join(a['name'] for a in target['artists'])}", flush=True)
     if unresolved:
         print(f"\\nNIET GEKOPPELD: {len(unresolved)} van 50", flush=True)
         for pos, artist, title in unresolved:
