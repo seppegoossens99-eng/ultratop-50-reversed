@@ -59,10 +59,14 @@ def main():
         return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
 
     for pos, title, artist in tracks:
+        artist_clean = re.sub(r"\\s*\\((?:fr|be|nl|uk|us|de|au|ca)\\)\\s*$", "", artist, flags=re.I).strip()
         queries = [
             f'track:"{title}" artist:"{artist}"',
             f'"{title}" "{artist}"',
             f'{title} {artist}',
+            f'track:"{title}" artist:"{artist_clean}"',
+            f'"{title}" "{artist_clean}"',
+            f'{title} {artist_clean}',
         ]
         candidates = {}
         for query in queries:
@@ -71,7 +75,7 @@ def main():
             matches = [
                 item for item in candidates.values()
                 if norm(item["name"]) == norm(title)
-                and any(norm(a["name"]) == norm(artist) for a in item["artists"])
+                and any(norm(a["name"]) in {norm(artist), norm(artist_clean)} for a in item["artists"])
             ]
             if matches:
                 break
