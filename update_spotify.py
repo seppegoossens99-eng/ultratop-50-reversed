@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import requests
@@ -13,12 +14,32 @@ PLAYLIST_NAME = "Ultratop 50 België – Reversed"
 TZ = ZoneInfo("Europe/Brussels")
 
 def chart():
-    response = requests.get(SOURCE, headers={"User-Agent": "Mozilla/5.0"}, timeout=45)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "lxml")
-    table = soup.select_one("#ChartTable")
+    table = None
+    for attempt in range(1, 5):
+        try:
+            response = requests.get(
+                SOURCE,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
+                },
+                timeout=45,
+            )
+            print(f"aCharts poging {attempt}/4: HTTP {response.status_code}, {len(response.content)} bytes, URL {response.url}", flush=True)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "lxml")
+            table = soup.select_one("#ChartTable")
+            if table is not None:
+                break
+            page_title = soup.title.get_text(" ", strip=True) if soup.title else "(geen titel)"
+            print(f"ChartTable ontbreekt. Paginatitel: {page_title!r}; begin tekst: {soup.get_text(' ', strip=True)[:250]!r}", flush=True)
+        except requests.RequestException as exc:
+            print(f"aCharts verzoek mislukt: {exc}", flush=True)
+        if attempt < 4:
+            time.sleep(attempt * 5)
     if table is None:
-        raise RuntimeError("ChartTable ontbreekt")
+        raise RuntimeError("Na vier pogingen geen geldige ChartTable van aCharts; playlist blijft ongewijzigd")
     tracks = []
     for row in table.select('tr[itemprop="itemListElement"]'):
         pos = row.select_one('[itemprop="position"]')
