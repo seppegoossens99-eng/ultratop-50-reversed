@@ -53,6 +53,7 @@ def main():
     user_id = sp.current_user()["id"]
     uris = []
     used = set()
+    unresolved = []
     import unicodedata
     def norm(s):
         s = unicodedata.normalize("NFKD", s.casefold())
@@ -83,15 +84,23 @@ def main():
             print(f"ONZEKER: {pos}: {artist} - {title}", flush=True)
             for item in list(candidates.values())[:8]:
                 print("  Spotify kandidaat:", item["name"], "-", ", ".join(a["name"] for a in item["artists"]), flush=True)
-            raise RuntimeError("Geen exacte Spotify-match; playlist blijft ongewijzigd")
+            unresolved.append((pos, artist, title))
+            continue
         available = [item for item in matches if item["uri"] not in used]
         if not available:
-            raise RuntimeError(f"Dubbel Spotify-ID bij positie {pos}")
+            unresolved.append((pos, artist, title))
+            print(f"DUBBEL: {pos}: {artist} - {title}", flush=True)
+            continue
         target = next((item for item in available if item.get("is_playable", True)), available[0])
         uri = target["uri"]
         used.add(uri)
         uris.append(uri)
         print(f"{51-pos:02d}. {artist} - {title}", flush=True)
+    if unresolved:
+        print(f"\\nNIET GEKOPPELD: {len(unresolved)} van 50", flush=True)
+        for pos, artist, title in unresolved:
+            print(f"  Ultratop #{pos}: {artist} - {title}", flush=True)
+        raise RuntimeError("Niet alle 50 tracks betrouwbaar gevonden; playlist blijft ongewijzigd")
     playlist_id = os.environ.get("SPOTIFY_PLAYLIST_ID", "").strip()
     if playlist_id:
         playlist = sp.playlist(playlist_id, fields="id,name,owner(id)")
