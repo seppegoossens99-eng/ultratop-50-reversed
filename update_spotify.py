@@ -86,7 +86,7 @@ def main():
 
     def artist_parts(s):
         s = clean_artist(s)
-        return [clean_artist(p).strip() for p in re.split(r"\s+(?:x|&|and|feat\.?|ft\.?)\s+", s, flags=re.I) if p.strip()]
+        return [clean_artist(p).strip() for p in re.split(r"\s+(?:x|and|feat\.?|ft\.?)\s+", s, flags=re.I) if p.strip()]
 
     def artist_ok(chart_artist, spotify_artists):
         expected = [norm(x) for x in artist_parts(chart_artist)]
