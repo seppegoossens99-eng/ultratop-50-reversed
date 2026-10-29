@@ -70,7 +70,7 @@ def main():
         scope="playlist-modify-private playlist-modify-public",
     )
     token = auth.refresh_access_token(os.environ["SPOTIFY_REFRESH_TOKEN"])["access_token"]
-    sp = spotipy.Spotify(auth=token, requests_timeout=30, retries=3)
+    sp = spotipy.Spotify(auth=token, requests_timeout=20, retries=0, status_retries=0, backoff_factor=0)
     user_id = sp.current_user()["id"]
     uris = []
     used = set()
@@ -106,6 +106,7 @@ def main():
         return norm(prefix) == expected
 
     for pos, title, artist in tracks:
+        print(f"Zoeken Ultratop #{pos}: {artist} - {title}", flush=True)
         artist_clean = clean_artist(artist)
         parts = artist_parts(artist)
         queries = [
