@@ -91,6 +91,8 @@ def main():
     def artist_ok(chart_artist, spotify_artists):
         expected = [norm(x) for x in artist_parts(chart_artist)]
         actual = [norm(a["name"]) for a in spotify_artists]
+        if norm(chart_artist) == "bausa" and "thebausa" in actual:
+            return True  # Chart credits Bausa; Spotify credits The Bausa for Magnetic.
         return bool(expected) and all(x in actual for x in expected)
 
     def title_ok(chart_title, spotify_title):
