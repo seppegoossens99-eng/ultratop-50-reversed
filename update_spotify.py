@@ -66,7 +66,7 @@ def main():
         ]
         candidates = {}
         for query in queries:
-            for item in sp.search(q=query, type="track", limit=50)["tracks"]["items"]:
+            for item in sp.search(q=query, type="track", limit=10)["tracks"]["items"]:
                 candidates[item["id"]] = item
             matches = [
                 item for item in candidates.values()
