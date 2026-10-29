@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
 import spotipy
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from spotipy.oauth2 import SpotifyOAuth
 
 SOURCE = "https://acharts.co/belgium_singles_top_50"
@@ -71,6 +73,9 @@ def main():
     )
     token = auth.refresh_access_token(os.environ["SPOTIFY_REFRESH_TOKEN"])["access_token"]
     sp = spotipy.Spotify(auth=token, requests_timeout=20, retries=0, status_retries=0, backoff_factor=0)
+    # Spotipy creates an HTTP adapter that retries 429 by default even when retries=0.
+    # Replace it so Retry-After values of many hours never block GitHub Actions.
+    sp._session.mount("https://", HTTPAdapter(max_retries=Retry(total=0, status=0, respect_retry_after_header=False)))
     user_id = sp.current_user()["id"]
     uris = []
     used = set()
