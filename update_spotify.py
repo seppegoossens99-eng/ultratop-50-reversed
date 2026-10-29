@@ -78,7 +78,7 @@ def main():
             return True
         # Only permit an explicit parenthetical suffix on the Spotify version.
         # E.g. "I'm Good - From The Movie GOAT" or "Talk To You (ft. 54 Ultra)".
-        prefix = re.split(r"\\s+(?:-|–)\\s+|\\s*\\(", spotify_title, maxsplit=1)[0]
+        prefix = re.split(r"\s+(?:-|–)\s+|\s*\(", spotify_title, maxsplit=1)[0]
         return norm(prefix) == expected
 
     for pos, title, artist in tracks:
