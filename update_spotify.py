@@ -53,27 +53,41 @@ def main():
     user_id = sp.current_user()["id"]
     uris = []
     used = set()
+    import unicodedata
+    def norm(s):
+        s = unicodedata.normalize("NFKD", s.casefold())
+        return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
+
     for pos, title, artist in tracks:
-        query = f'track:"{title}" artist:"{artist}"'
-        results = sp.search(q=query, type="track", limit=10)["tracks"]["items"]
-        if not results:
-            print(f"NIET GEVONDEN: {pos}: {artist} - {title}")
-            raise RuntimeError("Niet alle 50 tracks gevonden; playlist blijft ongewijzigd")
-        target = None
-        norm = lambda s: re.sub(r"[^a-z0-9]+", "", s.casefold())
-        for item in results:
-            if norm(item["name"]) == norm(title) and any(norm(a["name"]) == norm(artist) for a in item["artists"]):
-                target = item
+        queries = [
+            f'track:"{title}" artist:"{artist}"',
+            f'"{title}" "{artist}"',
+            f'{title} {artist}',
+        ]
+        candidates = {}
+        for query in queries:
+            for item in sp.search(q=query, type="track", limit=50)["tracks"]["items"]:
+                candidates[item["id"]] = item
+            matches = [
+                item for item in candidates.values()
+                if norm(item["name"]) == norm(title)
+                and any(norm(a["name"]) == norm(artist) for a in item["artists"])
+            ]
+            if matches:
                 break
-        if target is None:
-            print(f"ONZEKER: {pos}: {artist} - {title}")
+        if not matches:
+            print(f"ONZEKER: {pos}: {artist} - {title}", flush=True)
+            for item in list(candidates.values())[:8]:
+                print("  Spotify kandidaat:", item["name"], "-", ", ".join(a["name"] for a in item["artists"]), flush=True)
             raise RuntimeError("Geen exacte Spotify-match; playlist blijft ongewijzigd")
-        uri = target["uri"]
-        if uri in used:
+        available = [item for item in matches if item["uri"] not in used]
+        if not available:
             raise RuntimeError(f"Dubbel Spotify-ID bij positie {pos}")
+        target = next((item for item in available if item.get("is_playable", True)), available[0])
+        uri = target["uri"]
         used.add(uri)
         uris.append(uri)
-        print(f"{51-pos:02d}. {artist} - {title}")
+        print(f"{51-pos:02d}. {artist} - {title}", flush=True)
     playlist_id = os.environ.get("SPOTIFY_PLAYLIST_ID", "").strip()
     if playlist_id:
         playlist = sp.playlist(playlist_id, fields="id,name,owner(id)")
