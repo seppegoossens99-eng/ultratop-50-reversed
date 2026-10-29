@@ -82,11 +82,11 @@ def main():
         return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
 
     def clean_artist(s):
-        return re.sub(r"\\s*\\((?:fr|be|nl|uk|us|de|au|ca)\\)\\s*$", "", s, flags=re.I).strip()
+        return re.sub(r"\s*\((?:fr|be|nl|uk|us|de|au|ca)\)\s*$", "", s, flags=re.I).strip()
 
     def artist_parts(s):
         s = clean_artist(s)
-        return [clean_artist(p).strip() for p in re.split(r"\\s+(?:x|&|and|feat\\.?|ft\\.?)\\s+", s, flags=re.I) if p.strip()]
+        return [clean_artist(p).strip() for p in re.split(r"\s+(?:x|&|and|feat\.?|ft\.?)\s+", s, flags=re.I) if p.strip()]
 
     def artist_ok(chart_artist, spotify_artists):
         expected = [norm(x) for x in artist_parts(chart_artist)]
