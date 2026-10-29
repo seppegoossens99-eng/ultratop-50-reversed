@@ -85,7 +85,8 @@ def main():
         return re.sub(r"\\s*\\((?:fr|be|nl|uk|us|de|au|ca)\\)\\s*$", "", s, flags=re.I).strip()
 
     def artist_parts(s):
-        return [clean_artist(p).strip() for p in re.split(r"\\s+(?:x|X|&|and|feat\\.?|ft\\.?)\\s+", clean_artist(s), flags=re.I) if p.strip()]
+        s = clean_artist(s)
+        return [clean_artist(p).strip() for p in re.split(r"\\s+(?:x|&|and|feat\\.?|ft\\.?)\\s+", s, flags=re.I) if p.strip()]
 
     def artist_ok(chart_artist, spotify_artists):
         expected = [norm(x) for x in artist_parts(chart_artist)]
