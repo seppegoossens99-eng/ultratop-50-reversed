@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 from chart_source import parse_chart
-from generate_details import credited_artists
+from generate_details import credited_artists, cached_release
 from build_mobile_page import render_band_members
 
 class UltratopProjectTests(unittest.TestCase):
@@ -41,6 +41,9 @@ class UltratopProjectTests(unittest.TestCase):
         result=render_band_members([{'Lid':'Member','Leeftijd lid':'28','Functie/instrument':'Gitaar','Status':'Huidig'}])
         for expected in ('Member','28 jaar','Gitaar'):
             self.assertIn(expected,result)
+    def test_collaboration_retains_previously_sourced_release_date(self):
+        releases={('song','artist a artist b'):('2026-01-02','https://example.com/source')}
+        self.assertEqual(cached_release(releases,'Song',['Artist A','Artist B']),('2026-01-02','https://example.com/source'))
 
 if __name__=='__main__':
     unittest.main()

@@ -38,13 +38,20 @@ def credited_artists(credits,canonical):
                 names.append(name)
     return names
 
+def cached_release(releases, title, credits):
+    for artist in (' & '.join(credits), credits[0]):
+        value=releases.get((metadata.norm(title),metadata.norm(artist)),('',''))
+        if value[1]:
+            return value
+    return ('','')
+
 def main(chart=None):
     chart=chart or load_chart()
     from artist_identities import VERIFIED_ARTIST_IDS
     metadata.VERIFIED_ARTIST_IDS.update(VERIFIED_ARTIST_IDS)
     previous_date=(ROOT/'ultratop_chart_date.txt').read_text(encoding='utf-8').strip() if (ROOT/'ultratop_chart_date.txt').exists() else ''
     prior=read(ROOT/'ultratop_50_details.csv')+read(ROOT/'seed_details.csv')
-    releases={(metadata.norm(r['Nummer']),metadata.norm(r['Artiest'])):(r['Eerste officiële releasedatum'],r['Bron releasedatum']) for r in prior}
+    releases={(metadata.norm(r['Nummer']),metadata.norm(r['Artiest'])):(r['Eerste officiële releasedatum'],r['Bron releasedatum']) for r in reversed(prior) if r['Bron releasedatum']}
     seeds=read(ROOT/'seed_artists.csv')+read(ROOT/'ultratop_50_artists.csv')
     for row in seeds:
         if row.get('Bron herkomst','').startswith('https://musicbrainz.org/artist/'):
@@ -66,7 +73,7 @@ def main(chart=None):
         origins={name:metadata.artist_details(name) for name in credits}
         lead=credits[0]
         country,region,city,source=origins[lead]
-        date,date_source=releases.get((metadata.norm(song['song']),metadata.norm(lead)),('',''))
+        date,date_source=cached_release(releases,song['song'],credits)
         already_checked = previous_date==chart['date'] and any(r['Nummer']==song['song'] for r in prior)
         if not date_source and not already_checked:
             date,date_source=metadata.earliest_recording_date(song['song'],lead)
