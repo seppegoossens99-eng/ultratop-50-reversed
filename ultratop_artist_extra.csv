@@ -1,6 +1,6 @@
-Artiest,Debuutalbum,Gender,Genre,Bron debuutalbum,Bron genre
+﻿Artiest,Debuutalbum,Gender,Genre,Bron debuutalbum,Bron genre
 21 Savage,2017,Man,Hip-hop / trap,https://music.apple.com/us/album/issa-album/1256644768,https://www.allmusic.com/artist/21-savage-mn0003515232
-54 Ultra,,,,,
+54 Ultra,2021,,,https://musicbrainz.org/release-group/53918ccc-18d1-41d1-bd0d-81445129cef5,
 Aaron Blommaert,,Man,,,
 ADELA,2025,Vrouw,Pop,https://musicbrainz.org/artist/f40856e6-079f-4a0a-916e-9e6a5e04f646,https://www.wikidata.org/wiki/Q131629817
 Alex Warren,2021,Man,Pop,https://musicbrainz.org/release-group/a7f9aace-8470-44f3-acd8-e113bb6c16c7,https://www.wikidata.org/wiki/Q121842162
@@ -39,10 +39,10 @@ Dolly Babe,2022,Vrouw,Hiphop,https://www.qobuz.com/nz-en/album/ballerina-dolly-b
 Dominic Fike,2020,Man,Alternatieve pop / hip-hop,https://en.wikipedia.org/wiki/What_Could_Possibly_Go_Wrong_(Dominic_Fike_album),https://en.wikipedia.org/wiki/Dominic_Fike
 Don Toliver,2020,Man,Hip-hop / R&B,https://en.wikipedia.org/wiki/Heaven_or_Hell_(Don_Toliver_album),https://en.wikipedia.org/wiki/Don_Toliver
 Drake,2010,Man,Hip-hop / R&B,https://en.wikipedia.org/wiki/Thank_Me_Later,https://www.allmusic.com/artist/mn0001035294
-Ed Sheeran,,Man,Pop / Rock / Rock-'n-roll,,https://www.wikidata.org/wiki/Q47447
+Ed Sheeran,2005,Man,Pop / Rock / Rock-'n-roll,https://musicbrainz.org/release-group/3386ab22-77ef-4aa5-a5d8-b1e99eb16c67,https://www.wikidata.org/wiki/Q47447
 Elevation Worship,2006,Groep,Christelijke muziek / worship,https://www.allmusic.com/artist/elevation-worship-mn0001944458,https://en.wikipedia.org/wiki/Elevation_Worship
 Ella Langley,2024,Vrouw,Country,https://en.wikipedia.org/wiki/Hungover_(Ella_Langley_album),https://en.wikipedia.org/wiki/Ella_Langley
-Faithless,,Groep,electronic / trip hop / trance,,https://musicbrainz.org/artist/23d9d74d-c95e-46a6-be26-a6075c49747a
+Faithless,1995,Groep,electronic / trip hop / trance,https://musicbrainz.org/release-group/1c19140d-86ca-35df-8977-0e478e8d8fbe,https://musicbrainz.org/artist/23d9d74d-c95e-46a6-be26-a6075c49747a
 Freya Skye,2022,Vrouw,,https://musicbrainz.org/release-group/d1368181-3c3a-4fd1-8727-9f8cc1c28f0e,
 Froukje,2020,Vrouw,Pop,https://musicbrainz.org/release-group/51e55579-f6d6-48be-a572-4294b357db01,https://www.wikidata.org/wiki/Q105064078
 Greylan James,2022,Man,Country,https://musicrow.com/2022/08/greylan-james-puts-on-his-artist-hat-with-debut-ep/,https://www.opry.com/artists/greylan-james
@@ -58,7 +58,7 @@ JENNIE,2025,Vrouw,K-pop / hip-hop,https://en.wikipedia.org/wiki/Ruby_(Jennie_alb
 Jhene Aiko,2014,Vrouw,R&B,https://www.grammy.com/news/jhen-aiko-lets-go-with-souled-out/,https://www.grammy.com/news/jhen-aiko-lets-go-with-souled-out/
 John Mayer,1999,Man,Poprock / blues,https://en.wikipedia.org/wiki/Inside_Wants_Out,https://en.wikipedia.org/wiki/John_Mayer
 John Morgan,2023,Man,Country,https://www.bbrmusicgroup.com/artist/john-morgan/,https://www.allmusic.com/artist/john-morgan-mn0004221795
-Jonas Blue,,Man,tropical house / snap music / trap,,https://www.wikidata.org/wiki/Q22246459
+Jonas Blue,2015,Man,tropical house / snap music / trap,https://musicbrainz.org/release-group/e4b8b150-eae2-4a2b-91bc-f4d3dbcebbb3,https://www.wikidata.org/wiki/Q22246459
 Judeline,2024,Vrouw,Alternatieve pop / flamenco,https://en.wikipedia.org/wiki/Bodhiria,https://en.wikipedia.org/wiki/Judeline
 Judith,2022,Vrouw,Folkpop / singer-songwriter / country,https://www.damusic.be/dossier/judith-you-did-not-sign-up-for-this,https://www.damusic.be/dossier/judith-you-did-not-sign-up-for-this
 Justice,2007,Groep,Elektronische muziek / house,https://en.wikipedia.org/wiki/Cross_(Justice_album),
@@ -95,7 +95,7 @@ Morgan Wallen,2018,Man,Country,https://en.wikipedia.org/wiki/If_I_Know_Me,https:
 Noah Kahan,2019,Man,Folkpop,https://en.wikipedia.org/wiki/Busyhead,https://en.wikipedia.org/wiki/Noah_Kahan
 Olivia Dean,2019,Vrouw,Neo-soul / pop,https://musicbrainz.org/artist/15e0d608-0869-429b-898d-3d8db3ecedd5,https://musicbrainz.org/artist/15e0d608-0869-429b-898d-3d8db3ecedd5
 Olivia Rodrigo,2021,Vrouw,Pop / poprock,https://en.wikipedia.org/wiki/Sour_(album),https://musicbrainz.org/artist/6925db17-f35e-42f3-a4eb-84ee6bf5d4b0
-Ray Dalton,,Man,Rock / Pop,,https://www.wikidata.org/wiki/Q13426816
+Ray Dalton,2015,Man,Rock / Pop,https://musicbrainz.org/release-group/223eb031-c8c0-4daf-93aa-9f2007524d8e,https://www.wikidata.org/wiki/Q13426816
 Riley Green,2019,Man,Country,https://en.wikipedia.org/wiki/Different_%27Round_Here,
 Robert Smith,1979,Man,Postpunk / gothic rock,https://www.thecure.com/bio/,https://en.wikipedia.org/wiki/Robert_Smith_(musician)
 Rockwell,1984,Man,Pop / R&B,https://en.wikipedia.org/wiki/Somebody%27s_Watching_Me_(album),https://en.wikipedia.org/wiki/Rockwell_(musician)
