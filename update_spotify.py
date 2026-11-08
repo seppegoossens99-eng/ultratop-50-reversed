@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import requests
@@ -22,6 +23,43 @@ def chart():
     print("Ultratop chart date:", chart_data["date"])
     return [(s["this_week"], s["song"], " and ".join(credited_artists(s["artists"], {}))) for s in chart_data["data"]]
 
+def norm(s):
+    s = unicodedata.normalize("NFKD", s.casefold())
+    return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
+
+def clean_artist(s):
+    return re.sub(r"\s*\((?:fr|be|nl|uk|us|de|au|ca)\)\s*$", "", s, flags=re.I).strip()
+
+def artist_parts(s):
+    s = clean_artist(s)
+    return [clean_artist(p).strip() for p in re.split(r"\s+(?:x|and|feat\.?|ft\.?)\s+", s, flags=re.I) if p.strip()]
+
+def artist_ok(chart_artist, spotify_artists, chart_title=None):
+    expected = [norm(x) for x in artist_parts(chart_artist)]
+    actual = [norm(a["name"]) for a in spotify_artists]
+    if norm(chart_artist) == "bausa" and "thebausa" in actual:
+        return True  # Chart credits Bausa; Spotify credits The Bausa for Magnetic.
+    if expected and all(x in actual for x in expected):
+        return True
+    # aCharts credits Imael Angel on this release; Spotify's catalog credits
+    # HUGEL and Ultra Naté. Confirmed in failed run 42514742903 and MusicBrainz:
+    # https://musicbrainz.org/release-group/6509cd5d-3296-4ae6-bfaf-09fa88e76e4b
+    # This exact release/credit variant must not relax matching for other songs.
+    return (norm(chart_title or '') == 'movintothesun'
+            and set(expected) == {'hugel', 'imaelangel', 'ultranate'}
+            and set(actual) == {'hugel', 'ultranate'})
+
+def title_ok(chart_title, spotify_title):
+    expected = norm(chart_title)
+    actual = norm(spotify_title)
+    if actual == expected:
+        return True
+    # Only permit an explicit parenthetical suffix on the Spotify version.
+    # E.g. "I'm Good - From The Movie GOAT" or "Talk To You (ft. 54 Ultra)".
+    prefix = re.split(r"\s+(?:-|–)\s+|\s*\(", spotify_title, maxsplit=1)[0]
+    return norm(prefix) == expected
+
+
 def main():
     tracks = chart()
     auth = SpotifyOAuth(
@@ -39,36 +77,6 @@ def main():
     uris = []
     used = set()
     unresolved = []
-    import unicodedata
-
-    def norm(s):
-        s = unicodedata.normalize("NFKD", s.casefold())
-        return re.sub(r"[^a-z0-9]+", "", "".join(ch for ch in s if not unicodedata.combining(ch)))
-
-    def clean_artist(s):
-        return re.sub(r"\s*\((?:fr|be|nl|uk|us|de|au|ca)\)\s*$", "", s, flags=re.I).strip()
-
-    def artist_parts(s):
-        s = clean_artist(s)
-        return [clean_artist(p).strip() for p in re.split(r"\s+(?:x|and|feat\.?|ft\.?)\s+", s, flags=re.I) if p.strip()]
-
-    def artist_ok(chart_artist, spotify_artists):
-        expected = [norm(x) for x in artist_parts(chart_artist)]
-        actual = [norm(a["name"]) for a in spotify_artists]
-        if norm(chart_artist) == "bausa" and "thebausa" in actual:
-            return True  # Chart credits Bausa; Spotify credits The Bausa for Magnetic.
-        return bool(expected) and all(x in actual for x in expected)
-
-    def title_ok(chart_title, spotify_title):
-        expected = norm(chart_title)
-        actual = norm(spotify_title)
-        if actual == expected:
-            return True
-        # Only permit an explicit parenthetical suffix on the Spotify version.
-        # E.g. "I'm Good - From The Movie GOAT" or "Talk To You (ft. 54 Ultra)".
-        prefix = re.split(r"\s+(?:-|–)\s+|\s*\(", spotify_title, maxsplit=1)[0]
-        return norm(prefix) == expected
-
     for pos, title, artist in tracks:
         print(f"Zoeken Ultratop #{pos}: {artist} - {title}", flush=True)
         artist_clean = clean_artist(artist)
@@ -87,7 +95,7 @@ def main():
                 candidates[item["id"]] = item
             matches = [
                 item for item in candidates.values()
-                if title_ok(title, item["name"]) and artist_ok(artist, item["artists"])
+                if title_ok(title, item["name"]) and artist_ok(artist, item["artists"], title)
             ]
             if matches:
                 break
@@ -107,7 +115,7 @@ def main():
         used.add(uri)
         uris.append(uri)
         print(f"{51-pos:02d}. {artist} - {title} -> {target['name']} / {', '.join(a['name'] for a in target['artists'])}", flush=True)
-    if unresolved:
+    if unresolved or len(uris) != 50 or len(used) != 50:
         print(f"\\nNIET GEKOPPELD: {len(unresolved)} van 50", flush=True)
         for pos, artist, title in unresolved:
             print(f"  Ultratop #{pos}: {artist} - {title}", flush=True)

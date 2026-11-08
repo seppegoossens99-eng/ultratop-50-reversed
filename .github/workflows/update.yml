@@ -43,7 +43,7 @@ jobs:
         run: python check_schedule.py
       - name: Verify chart parsing and artist credits
         if: steps.clock.outputs.proceed == 'true'
-        run: python -m unittest test_ultratop_project.py
+        run: python -m unittest test_ultratop_project.py test_chart_source.py test_spotify_update.py
       - name: Refresh chart, artists and website
         if: steps.clock.outputs.proceed == 'true'
         env:
@@ -96,6 +96,9 @@ jobs:
       - name: Check Belgian update time
         id: clock
         run: python check_schedule.py
+      - name: Verify Spotify matching and chart fallback
+        if: steps.clock.outputs.proceed == 'true'
+        run: python -m unittest test_chart_source.py test_spotify_update.py
       - name: Update Spotify playlist
         if: steps.clock.outputs.proceed == 'true'
         env:
