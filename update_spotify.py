@@ -16,52 +16,11 @@ PLAYLIST_NAME = "Ultratop 50 België – Reversed"
 TZ = ZoneInfo("Europe/Brussels")
 
 def chart():
-    table = None
-    for attempt in range(1, 5):
-        try:
-            response = requests.get(
-                SOURCE,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml",
-                    "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
-                },
-                timeout=45,
-            )
-            print(f"aCharts poging {attempt}/4: HTTP {response.status_code}, {len(response.content)} bytes, URL {response.url}", flush=True)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "lxml")
-            table = soup.select_one("#ChartTable")
-            if table is not None:
-                break
-            page_title = soup.title.get_text(" ", strip=True) if soup.title else "(geen titel)"
-            print(f"ChartTable ontbreekt. Paginatitel: {page_title!r}; begin tekst: {soup.get_text(' ', strip=True)[:250]!r}", flush=True)
-        except requests.RequestException as exc:
-            print(f"aCharts verzoek mislukt: {exc}", flush=True)
-        if attempt < 4:
-            time.sleep(attempt * 5)
-    if table is None:
-        raise RuntimeError("Na vier pogingen geen geldige ChartTable van aCharts; playlist blijft ongewijzigd")
-    tracks = []
-    for row in table.select('tr[itemprop="itemListElement"]'):
-        pos = row.select_one('[itemprop="position"]')
-        title = row.select_one('.cPrinciple [itemprop="name"]')
-        artist = row.select_one('.cPrinciple [itemprop="byArtist"] [itemprop="name"]')
-        if not all((pos, title, artist)):
-            raise RuntimeError("Onvolledige hitlijstregel")
-        tracks.append((int(pos.get_text(strip=True)), title.get_text(" ", strip=True), artist.get_text(" ", strip=True)))
-    if len(tracks) != 50 or sorted(x[0] for x in tracks) != list(range(1, 51)):
-        raise RuntimeError(f"Geen complete Top 50: {len(tracks)} regels")
-    text = soup.get_text(" ", strip=True)
-    match = re.search(r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2}\b", text)
-    if not match:
-        raise RuntimeError("Chartdatum niet gevonden: niet publiceren")
-    date = datetime.strptime(match.group(), "%B %d, %Y").date()
-    age = (datetime.now(TZ).date() - date).days
-    if not 0 <= age <= 16:
-        raise RuntimeError(f"Chartdatum {date} is niet recent genoeg (leeftijd {age} dagen)")
-    print(f"Ultratop chart date: {date}, {len(tracks)} nummers")
-    return list(reversed(tracks))
+    from chart_source import load_chart
+    from generate_details import credited_artists
+    chart_data = load_chart()
+    print("Ultratop chart date:", chart_data["date"])
+    return [(s["this_week"], s["song"], " and ".join(credited_artists(s["artists"], {}))) for s in chart_data["data"]]
 
 def main():
     tracks = chart()
@@ -164,7 +123,12 @@ def main():
         playlist_id = playlist["id"]
         print("NIEUWE PLAYLIST:", playlist["external_urls"]["spotify"])
         print("BELANGRIJK: voeg SPOTIFY_PLAYLIST_ID toe als GitHub Secret voor volgende updates:", playlist_id)
-    sp.playlist_replace_items(playlist_id, uris)
+    reply = requests.put(
+        f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
+        headers={"Authorization": "Bearer " + token},
+        json={"uris": uris}, timeout=40,
+    )
+    reply.raise_for_status()
     print(f"SUCCES: {len(uris)} nummers geplaatst, 50 naar 1. Playlist ID: {playlist_id}")
 
 if __name__ == "__main__":
@@ -173,3 +137,4 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"FOUT: {exc}", file=sys.stderr)
         raise
+

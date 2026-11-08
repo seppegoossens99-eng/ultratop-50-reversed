@@ -1,22 +1,99 @@
 name: Update Ultratop 50 Reversed
 on:
+  push:
+    branches: [main]
+    paths: ['*.py', '*.json', 'requirements.txt', '.github/workflows/update.yml']
   workflow_dispatch:
+    inputs:
+      update_spotify:
+        description: Spotify-playlist ook bijwerken?
+        required: false
+        type: boolean
+        default: false
   schedule:
-    - cron: '0 4 * * 1'
-      timezone: 'Europe/Brussels'
-permissions:
-  contents: read
+    # 05:00 Brussels in summer and winter; the clock check selects one.
+    - cron: '0 3,4 * * 1'
+
+concurrency:
+  group: ultratop-50-update
+  cancel-in-progress: false
+
 jobs:
-  update:
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Check Belgian update time
+        id: clock
+        run: python check_schedule.py
+      - name: Verify chart parsing and artist credits
+        if: steps.clock.outputs.proceed == 'true'
+        run: python -m unittest test_ultratop_project.py
+      - name: Refresh chart, artists and website
+        if: steps.clock.outputs.proceed == 'true'
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+        run: python -u refresh_project.py
+      - name: Save website data
+        if: steps.clock.outputs.proceed == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ultratop_*.csv ultratop_chart_date.txt ultratop_50.html index.html chart_snapshot.json resolved_identities.json catalog_cache.json band_members_cache.json band_member_ages_cache.json metadata_quality_report.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update Ultratop 50 website and artist metadata'
+            git push
+          fi
+      - name: Configure GitHub Pages
+        if: steps.clock.outputs.proceed == 'true'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Prepare website
+        if: steps.clock.outputs.proceed == 'true'
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.clock.outputs.proceed == 'true'
+        with:
+          path: _site
+      - name: Publish website
+        if: steps.clock.outputs.proceed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  spotify:
+    if: github.event_name == 'schedule' || inputs.update_spotify == true
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - name: Check Belgian update time
+        id: clock
+        run: python check_schedule.py
       - name: Update Spotify playlist
+        if: steps.clock.outputs.proceed == 'true'
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}

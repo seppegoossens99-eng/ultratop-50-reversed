@@ -1,0 +1,188 @@
+"""Build a standalone, mobile-friendly HTML view of the Ultratop CSV files."""
+import csv
+import html
+import json
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+def read_csv(filename):
+    with (ROOT / filename).open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+def safe_url(url):
+    return html.escape(url, quote=True) if url.startswith("https://musicbrainz.org/") else ""
+
+def display_date(value):
+    """Format complete ISO dates as DD/MM/YYYY; retain partial dates and years."""
+    if len(value) == 10 and value[4] == "-" and value[7] == "-":
+        return f"{value[8:10]}/{value[5:7]}/{value[:4]}"
+    return value
+
+
+def render_band_members(rows):
+    if not rows:
+        return ""
+    current = [r for r in rows if r.get("Lid") and not r.get("Status", "").startswith("Voormalig")]
+    former = [r for r in rows if r.get("Lid") and r.get("Status", "").startswith("Voormalig")]
+    def member_list(members):
+        result = []
+        for member in members:
+            member_age = member.get("Leeftijd lid", "")
+            age_text = member_age + " jaar" if member_age else (member.get('Leeftijdsinfo') or "Leeftijd niet bevestigd")
+            age_url = member.get("Bron lid", "")
+            age_source = (' <a href="' + html.escape(age_url, quote=True) + '" target="_blank" rel="noopener">Bron leeftijd</a>') if (member_age or member.get('Leeftijdsinfo')) and age_url.startswith("https://") else ""
+            role = member.get("Functie/instrument") or "Instrument/rol niet bevestigd"
+            result.append('<li class="band-member"><strong>' + html.escape(member["Lid"]) + '</strong><span class="member-age">' + html.escape(age_text) + age_source + '</span><span class="member-role">Instrument/rol: ' + html.escape(role) + '</span></li>')
+        return '<ul class="band-member-list">' + "".join(result) + '</ul>'
+    note = rows[0].get("Volledigheid", "")
+    url = rows[0].get("Bron", "")
+    source = (' <a href="' + html.escape(url, quote=True) + '" target="_blank" rel="noopener">Bron bezetting en rollen</a>') if url.startswith("https://") else ""
+    old = '<details class="former-members"><summary>Voormalige leden</summary>' + member_list(former) + '</details>' if former else ""
+    return '<section class="band-members"><h3>Bandleden en instrumenten</h3>' + (member_list(current) if current else '<p>Huidige leden nog niet bevestigd.</p>') + old + '<p class="members-note">' + html.escape(note) + source + '</p></section>'
+
+def main():
+    tracks = read_csv("ultratop_50_details.csv")
+    chart_date = (ROOT / "ultratop_chart_date.txt").read_text(encoding="utf-8").strip()
+    artists = read_csv("ultratop_50_artists.csv")
+    if len(tracks) != 50 or [int(x["Ultratop-positie"]) for x in tracks] != list(range(50, 0, -1)):
+        raise RuntimeError("Invalid chart order; HTML unchanged.")
+    grouped = defaultdict(list)
+    for artist in artists:
+        grouped[(artist["Ultratop-positie"], artist["Nummer"])].append(artist)
+    band_rows = read_csv("ultratop_band_members.csv")
+    bands = defaultdict(list)
+    for member in band_rows:
+        bands[member["Artiest"]].append(member)
+    profiles = {row["Artiest"]: row for row in read_csv("ultratop_artist_profiles.csv")}
+    # Debuutjaar is the earliest documented release year, including singles and soundtrack appearances.
+    extras = {row["Artiest"]: row for row in read_csv("ultratop_artist_extra.csv")}
+    blocks = []
+    for track in tracks:
+        pos = track["Ultratop-positie"]
+        name = track["Nummer"]
+        credited = grouped[(pos, name)]
+        people = []
+        for person in credited:
+            place = ", ".join(p for p in (person["Stad"], person["Staat/regio"], person["Land"]) if p)
+            origin = html.escape(place or "Herkomst onbekend")
+            source = safe_url(person["Bron herkomst"])
+            source_link = f' <a href="{source}" target="_blank" rel="noopener">Bron</a>' if source else ""
+            profile = profiles.get(person["Artiest"], {})
+            age = profile.get("Leeftijd", "")
+            birth = profile.get("Geboortedatum", "")
+            birth_text = (" · Geboren: " + html.escape(display_date(birth))) if len(birth) == 10 else (" · Geboortedatum onbekend" if profile.get("Type") == "Person" else "")
+            birth_source = profile.get("Bron leeftijd", "")
+            if len(birth) == 10 and birth_source.startswith("https://"):
+                birth_text += ' <a href="' + html.escape(birth_source, quote=True) + '" target="_blank" rel="noopener">Bron geboortedatum</a>'
+            # Publicly reported age context is distinct from a confirmed birth date.
+            # Keep these out of the exact-age CSV and its quality statistics.
+            REPORTED_AGE_CONTEXT = {
+                "BabyChiefDoit": ("17 jaar in juli 2025 volgens XXL; exacte geboortedatum niet bevestigd", "https://www.xxlmag.com/babychiefdoit/"),
+                "Mack Geiger": ("21 jaar (volgens officiële artiestensite)", "https://mackgeiger.com/"),
+                "Belly Gang Kushington": ("Verjaardag: 4 februari (Famous Birthdays); 35 jaar gemeld in juli 2026 (XXL); geboortejaar niet bevestigd", "https://www.famousbirthdays.com/people/belly-gang-kushington.html"),
+                "rusowsky": ("geboren in 1999 (exacte leeftijd onbekend)", "https://es.wikipedia.org/wiki/Rusowsky"),
+            }
+            age_text = f" · {html.escape(age)} jaar" if age else (" · Leeftijd onbekend" if profile.get("Type") == "Person" else "")
+            if not age and person["Artiest"] in REPORTED_AGE_CONTEXT:
+                age_label, age_url = REPORTED_AGE_CONTEXT[person["Artiest"]]
+                age_text = f' · {html.escape(age_label)} <a href="{html.escape(age_url, quote=True)}" target="_blank" rel="noopener">Bron</a>'
+            photo = profile.get("Afbeelding", "")
+            portrait = f'<img class="portrait" src="{html.escape(photo, quote=True)}" alt="Foto van {html.escape(person["Artiest"], quote=True)}" loading="lazy" referrerpolicy="no-referrer">' if photo.startswith(("https://commons.wikimedia.org/wiki/Special:FilePath/", "https://image-cdn-ak.spotifycdn.com/image/", "https://image-cdn-fa.spotifycdn.com/image/", "https://i.scdn.co/image/")) else ""
+            if not portrait:
+                portrait = '<div class="portrait portrait-empty">Foto niet beschikbaar</div>'
+            photo_source = profile.get("Bron afbeelding", "")
+            photo_credit = f' <a href="{html.escape(photo_source, quote=True)}" target="_blank" rel="noopener">Foto</a>' if photo_source.startswith(("https://www.wikidata.org/wiki/", "https://open.spotify.com/artist/")) else ""
+            artist_name = html.escape(person["Artiest"])
+            country = person.get("Land") or "Onbekend"
+            member_rows = bands.get(person["Artiest"], [])
+            member_count = next((x.get("Leden (bevestigd huidig)", "") for x in member_rows if x.get("Leden (bevestigd huidig)", "")), "")
+            members_display = (member_count or "Onbekend") if profile.get("Type") == "Group" else ("Solo" if profile.get("Type") == "Person" else "Onbekend")
+            age_display = ("Band · " + (member_count + " leden" if member_count else "leden hieronder")) if member_rows else (html.escape(age + " jaar") if age else ("Zie leeftijdsinfo" if person["Artiest"] in REPORTED_AGE_CONTEXT else "Onbekend"))
+            extra = extras.get(person["Artiest"], {})
+            tiles = [("Debuutjaar", extra.get("Debuutalbum") or "Nog te verifiëren"), ("Leden", members_display), ("Populariteit", "Niet beschikbaar"), ("Gender", extra.get("Gender") or ("Groep" if profile.get("Type") == "Group" else "Nog te verifiëren")), ("Genre", extra.get("Genre") or "Nog te verifiëren"), ("Land", country)]
+            tiles_html = "".join(f'<div class="artist-tile"><span>{html.escape(k)}</span><strong>{html.escape(v)}</strong></div>' for k, v in tiles)
+            extra_links = "".join('<a href="' + html.escape(extra[field], quote=True) + '" target="_blank" rel="noopener">' + label + '</a> ' for field, label in (("Bron debuutalbum", "Bron debuutjaar"), ("Bron genre", "Bron genre")) if extra.get(field, "").startswith("https://"))
+            people.append(f'<li class="artist-entry"><details class="artist-details"><summary class="artist-summary">{portrait}<span class="artist-heading"><strong>{artist_name}</strong><span class="artist-age">{age_display}</span><small>Tik voor meer artiesteninfo</small></span><span class="artist-chevron" aria-hidden="true">⌄</span></summary><div class="artist-expanded"><div class="artist-tiles">{tiles_html}</div><p class="artist-origin">Herkomst: {origin}{birth_text}{age_text}{source_link}{photo_credit} {extra_links}</p>{render_band_members(member_rows)}</div></details></li>')
+        last_week = track.get("Vorige week", "")
+        weeks = track.get("Weken in Ultratop 50", "")
+        peak = track.get("Hoogste positie", "")
+        if last_week:
+            difference = int(last_week) - int(pos)
+            movement = (f"▲ {difference} plaatsen gestegen" if difference > 0
+                        else f"▼ {abs(difference)} plaatsen gedaald" if difference < 0
+                        else "▬ Ongewijzigd")
+            previous_label = f"#{last_week}"
+        elif weeks == "1":
+            movement = "NIEUW in de Ultratop 50"
+            previous_label = "Nieuw"
+        else:
+            movement = "TERUG in de Ultratop 50"
+            previous_label = "Niet genoteerd"
+        movement_class = ("up" if last_week and int(last_week) > int(pos) else "down" if last_week and int(last_week) < int(pos) else "same" if last_week else "new" if weeks == "1" else "reentry")
+        chart_stats = (
+            '<div class="chart-stats">'
+            f'<div><span class="label">Vorige week</span><strong>{html.escape(previous_label)}</strong></div>'
+            f'<div><span class="label">Weken in Ultratop 50</span><strong>{html.escape(weeks or "Onbekend")}</strong></div>'
+            f'<div><span class="label">Hoogste positie</span><strong>#{html.escape(peak)}</strong></div>'
+            '</div>'
+            f'<p class="movement">{html.escape(movement)}</p>'
+        )
+        date = track["Eerste officiële releasedatum"]
+        date_display = html.escape(display_date(date)) if date else "Nog niet gevonden"
+        date_source = safe_url(track["Bron releasedatum"])
+        date_link = f'<a href="{date_source}" target="_blank" rel="noopener">MusicBrainz-bron</a>' if date_source else ""
+        status = "Voorlopige datum" if date else "Datum onbekend"
+        search = html.escape((pos + " " + name + " " + track["Artiest"] + " " + " ".join(p["Artiest"] for p in credited)).casefold(), quote=True)
+        blocks.append(f"""
+        <article class="song {movement_class}" data-rank="{pos}" data-search="{search}">
+          <div class="song-layout"><aside class="left"><span class="rank">#{pos}</span>{chart_stats}</aside><div class="center"><h2>{html.escape(name)}</h2><p class="credit">{html.escape(track["Artiest"])}</p><div class="release"><div class="label">Releasedatum</div><strong>{date_display}</strong><small>{status} · {date_link}</small></div></div><div class="right"><div class="label">Artiesten · tik voor details</div><ul>{''.join(people)}</ul></div></div>
+        </article>""")
+    document = """<!doctype html><html lang="nl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Ultratop 50 Vlaanderen · Reversed</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#f2f4f8;background:#0c101b}
+*{box-sizing:border-box}body{margin:0}main{max-width:1050px;margin:auto;padding:24px 16px 70px}
+header{padding:28px 0 18px}h1{font-size:clamp(30px,6vw,48px);letter-spacing:-.045em;margin:0}
+.sub{color:#b4bfd1;line-height:1.55}.pill{display:inline-block;color:#d4e5ff;background:#243c63;border-radius:30px;padding:6px 12px;font-size:13px}
+input{width:100%;font:inherit;padding:15px 17px;border:1px solid #4a566e;border-radius:12px;background:#182235;color:white;margin:18px 0 10px}
+#count{color:#aab9cc;font-size:14px;margin:0 0 15px}.songs{display:grid;gap:12px}
+.song{border:1px solid #29354a;border-radius:17px;background:#151d2c;padding:18px}
+.song.up{background:#174e36}.song.down{background:#713038}.song.new{background:#204d83}.song.reentry{background:#583778}.song.same{background:linear-gradient(145deg,#f3ce65,#c89528);border-color:#ffe29a;color:#251b09}.song.same .label,.song.same small,.song.same li span,.song.same .credit,.song.same .sub,.song.same .movement,.song.same .rank,.song.same .artist-age,.song.same .artist-heading small{color:#251b09}.song.same a{color:#37250a}.song.same .rank,.song.same .chart-stats>div{background:#ffffff55}.song.same .left,.song.same .right{border-color:#6d501f88}.song.same .artist-tile{color:white}
+.song-layout{display:grid;grid-template-columns:145px minmax(0,1.05fr) minmax(0,1fr);gap:18px}.left{border-right:1px solid #ffffff50;padding-right:12px}.center{padding:10px 0}.right{border-left:1px solid #ffffff50;padding-left:16px}.release{margin-top:35px}.song .chart-stats{display:flex;flex-direction:column;gap:7px}.song .chart-stats>div{background:#00000024}.song .rank{display:block;text-align:center;font-size:29px;background:#00000030;color:white}.song .label,.song small,.song li span,.song .credit,.song .sub{color:#f0f2f5}.song a{color:#fff;text-decoration:underline;text-underline-offset:3px}.song .movement{color:#fff}.song .portrait{width:100px;height:125px}.song .artist-entry{gap:10px}.song .bands{border-color:#ffffff50}.song .bands h3{font-size:15px}
+@media(max-width:700px){.song-layout{grid-template-columns:86px minmax(0,1fr);gap:12px}.left{grid-row:1/3}.center{grid-column:2}.right{grid-column:2;border-left:0;border-top:1px solid #ffffff50;padding:12px 0 0}.song .chart-stats strong{font-size:14px}.song .chart-stats>div{padding:7px}.song .rank{font-size:23px}.song .portrait{width:95px;height:120px}.song .artist-entry{flex-direction:row}}
+.heading{display:flex;gap:14px;align-items:start}.rank{flex:none;font-weight:800;color:#9dc3ff;background:#263a59;border-radius:9px;padding:8px 10px}
+h2{font-size:19px;margin:2px 0 5px;line-height:1.2}.credit{margin:0;color:#b9c7d8}
+.chart-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}.chart-stats>div{background:#202c40;border-radius:11px;padding:12px;min-width:0}.chart-stats strong{display:block;font-size:18px}.chart-stats .label{font-size:10px;line-height:1.4}.movement{font-weight:700;color:#a8ccff;margin:11px 0 0;font-size:14px}.info{display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:18px;margin-top:16px;border-top:1px solid #2b3648;padding-top:14px}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:#91a2b8;margin-bottom:8px}
+small{display:block;color:#aab9cc;margin-top:5px}ul{list-style:none;padding:0;margin:0}li{display:flex;flex-wrap:wrap;gap:5px 12px;margin-bottom:9px}li span{color:#b5c6d8}
+a{color:#99c4ff;text-decoration:none}a:hover{text-decoration:underline}
+.artist-entry{display:flex;align-items:flex-start;gap:16px;padding:10px 0}.artist-entry>div{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}.artist-entry strong{font-size:17px}.portrait{width:180px;height:220px;flex:none;object-fit:cover;object-position:center 22%;border-radius:14px;background:#26344a;cursor:zoom-in}.portrait:focus{outline:2px solid #99c4ff}.portrait-empty{display:flex;align-items:center;justify-content:center;padding:18px;text-align:center;color:#b5c6d8;font-size:14px;cursor:default}.photo-modal{border:0;padding:0;background:transparent;max-width:min(94vw,900px);max-height:94vh}.photo-modal::backdrop{background:rgba(0,0,0,.9)}.photo-modal img{display:block;max-width:94vw;max-height:86vh;object-fit:contain}.photo-modal button{display:block;margin:8px 0 0 auto;background:#263a59;border:0;border-radius:8px;padding:10px 16px;color:white;cursor:pointer}.bands{margin-top:14px;border-top:1px solid #2b3648;padding-top:14px}.bands summary{cursor:pointer;color:#a8ccff;font-weight:650}.band{padding:10px 0}.band h3{margin:4px 0;font-size:16px}.band p{margin:5px 0 10px}.note{background:#222c3f;padding:14px;border-radius:12px;color:#c9d3e2;font-size:14px;line-height:1.5}
+.artist-entry{display:block!important;width:100%;margin:0;padding:10px 0}.artist-details{width:100%;min-width:0}.artist-summary{display:flex;align-items:center;gap:12px;cursor:pointer;list-style:none;border-radius:12px;padding:6px 2px}.artist-summary::-webkit-details-marker{display:none}.artist-summary .portrait{width:72px!important;height:72px!important;border-radius:50%;object-fit:cover}.artist-heading{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.artist-heading strong{font-size:clamp(18px,3vw,24px)}.artist-heading .artist-age{font-size:14px;color:#fff}.artist-heading small{font-size:12px;opacity:.8}.artist-chevron{font-size:25px}.artist-details[open] .artist-chevron{transform:rotate(180deg)}.artist-expanded{padding:14px 0 4px}.artist-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.artist-tile{background:linear-gradient(150deg,#4bb97a,#2e8758);border:1px solid #8adca8;border-radius:16px;min-height:95px;padding:13px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:inset 0 1px 2px #ffffff44;color:white}.artist-tile span{font-size:13px;line-height:1.3}.artist-tile strong{font-size:clamp(12px,2.3vw,19px);overflow-wrap:anywhere;line-height:1.3;margin-top:5px}.artist-origin{font-size:13px;line-height:1.6;margin:14px 0 0}.right>ul{width:100%}@media(max-width:420px){.artist-tiles{gap:6px}.artist-tile{min-height:85px;border-radius:12px;padding:8px 3px}.artist-tile span{font-size:11px}.artist-tile strong{font-size:12px}}
+@media(max-width:620px){main{padding:18px 12px 55px}.song{padding:15px}.info{grid-template-columns:1fr;gap:15px}h2{font-size:18px}.artist-entry{flex-direction:row}.portrait{width:95px;height:120px;object-fit:cover}.artist-entry>div{width:100%}}
+.song.same .artist-tile span{color:white}.song.same .artist-heading .artist-age{color:#251b09}.legend{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.legend span{padding:6px 10px;border-radius:8px;font-size:13px;color:white}.legend .up{background:#174e36}.legend .down{background:#713038}.legend .new{background:#204d83}.legend .reentry{background:#583778}.legend .same{background:#f3ce65;color:#251b09}\n.band-members{margin-top:18px;border-top:1px solid #ffffff50;padding-top:12px}.band-members h3{font-size:16px;margin:0 0 10px}.band-member-list .band-member{display:flex;flex-direction:column;gap:5px;background:#00000024;border-radius:10px;padding:12px;margin-bottom:8px}.band-member strong{font-size:15px}.band-member .member-age,.band-member .member-role{font-size:13px;line-height:1.5}.members-note{font-size:12px;line-height:1.5}.former-members{margin:12px 0}.former-members summary{cursor:pointer;margin-bottom:10px}.song.same .band-members,.song.same .band-members span{color:#251b09}\n</style></head><body><main><header><span class="pill">#50 → #1</span>
+<h1>Ultratop 50 Vlaanderen</h1><p><a class="pill" href="https://open.spotify.com/playlist/59kSfLkSzSUryhnPMHeF99" target="_blank" rel="noopener">Luister op Spotify ↗</a></p><p class="sub">Hitlijst van __CHART_DATE__ · #50 tot #1 · positie vorige week, weken in de lijst, artiesten, foto’s en herkomst</p>
+<div class="note">De releasedata zijn voorlopig: MusicBrainz geeft de vroegste daar bekende opname-uitgave, maar bevestigt niet altijd de eerste officiële single-release. Debuutjaren verwijzen naar de vroegste gedocumenteerde uitgave in de vermelde bron; broncatalogi kunnen onvolledig zijn. Lege gegevens worden niet gegokt. De herkomst van een groep kan de oprichtingsplaats zijn.</div>
+<div class="legend" aria-label="Kleurenlegende"><span class="up">▲ Gestegen</span><span class="down">▼ Gedaald</span><span class="new">Nieuw</span><span class="reentry">Teruggekeerd</span><span class="same">▬ Ongewijzigd</span></div>\n</header><label for="search">Zoek artiest, nummer of positie</label><input id="search" type="search" placeholder="Bijv. Metejoor, Froukje, #48">
+<p id="count">50 nummers</p><section class="songs" id="songs">
+""" + "\n".join(blocks) + """</section></main><dialog id="photo-modal" class="photo-modal"><img id="photo-large" alt=""><button id="photo-close" type="button">Sluiten</button></dialog>
+<script>
+const input=document.getElementById('search'),songs=[...document.querySelectorAll('.song')],count=document.getElementById('count');
+const modal=document.getElementById('photo-modal'),large=document.getElementById('photo-large');
+document.querySelectorAll('img.portrait').forEach(img=>{img.tabIndex=0;img.setAttribute('role','button');img.setAttribute('aria-label','Vergroot '+img.alt);const open=()=>{large.src=img.src;large.alt=img.alt;modal.showModal()};img.addEventListener('click',open);img.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})});
+document.getElementById('photo-close').addEventListener('click',()=>modal.close());
+modal.addEventListener('click',e=>{if(e.target===modal)modal.close()});
+input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase();const rank=q.match(/^#([0-9]{1,3})$/);let visible=0;
+for(const song of songs){const show=rank?song.dataset.rank===String(Number(rank[1])):song.dataset.search.includes(q);song.hidden=!show;if(show)visible++;}
+count.textContent=visible+' van '+songs.length+' nummers';});
+</script></body></html>"""
+    document = document.replace("__CHART_DATE__", html.escape(display_date(chart_date)))
+    (ROOT / "ultratop_50.html").write_text(document, encoding="utf-8")
+    print("Created ultratop_50.html with",len(tracks),"songs and",len(artists),"artist credits")
+
+if __name__ == "__main__":
+    main()
+
