@@ -11,8 +11,8 @@ on:
         type: boolean
         default: false
   schedule:
-    # 05:00 Brussels in summer and winter; the clock check selects one.
-    - cron: '0 3,4 * * 1'
+    - cron: '0 5 * * 1'
+      timezone: Europe/Brussels
 
 concurrency:
   group: ultratop-50-update
@@ -38,20 +38,14 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Check Belgian update time
-        id: clock
-        run: python check_schedule.py
       - name: Verify chart parsing and artist credits
-        if: steps.clock.outputs.proceed == 'true'
         run: python -m unittest test_ultratop_project.py test_chart_source.py test_spotify_update.py
       - name: Refresh chart, artists and website
-        if: steps.clock.outputs.proceed == 'true'
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: python -u refresh_project.py
       - name: Save website data
-        if: steps.clock.outputs.proceed == 'true'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -61,21 +55,17 @@ jobs:
             git push
           fi
       - name: Configure GitHub Pages
-        if: steps.clock.outputs.proceed == 'true'
         uses: actions/configure-pages@v5
         with:
           enablement: true
       - name: Prepare website
-        if: steps.clock.outputs.proceed == 'true'
         run: |
           mkdir -p _site
           cp index.html _site/index.html
       - uses: actions/upload-pages-artifact@v3
-        if: steps.clock.outputs.proceed == 'true'
         with:
           path: _site
       - name: Publish website
-        if: steps.clock.outputs.proceed == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
 
@@ -93,14 +83,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Check Belgian update time
-        id: clock
-        run: python check_schedule.py
       - name: Verify Spotify matching and chart fallback
-        if: steps.clock.outputs.proceed == 'true'
         run: python -m unittest test_chart_source.py test_spotify_update.py
       - name: Update Spotify playlist
-        if: steps.clock.outputs.proceed == 'true'
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
